@@ -53,6 +53,26 @@ class Movie(object):
       os.mkdir(moviedir)
     tools.makeStrm(filename, self.url)
   
+class LiveTv(Movie):
+    def getFilename(self):
+        '''Getter to get the filename for the stream file
+        
+        :returns: the fully constructed filename with type directory ea. "movies/The Longest Yard - 720p.strm"
+        :rtype: str
+        '''
+        filestring = [self.title.replace(':','-').replace('*','_').replace('/','_').replace('?','')]
+        if self.year:
+          if self.year[0] == "(":
+            filestring.append(self.year)
+          else:
+            self.year = "(" + self.year + ")"
+            filestring.append(self.year)
+        else:
+          self.year = "A"
+        if self.resolution:
+          filestring.append(self.resolution)
+        return ('livetv/' + self.title.replace(':','-').replace('*','_').replace('/','_').replace('?','') + ' - ' + self.year + "/" + ' - '.join(filestring) + ".strm")
+  
 class TVEpisode(object):
   '''A class used to construct the TV filename.
 
@@ -164,6 +184,16 @@ class rawStreamList(object):
         self.parseStream(thisline, nextline)
         linenumber += 2
         #self.parseLine(linenumber)
+        
+  def parseStreamTypeByUrl(self, streamURL):
+    if streamURL.startswith('http://aptv.one:80/series'):
+        return 'vodTV'
+    elif streamURL.startswith('http://aptv.one:80/movie'):
+        return 'vodMovie'
+    elif streamURL.startswith('http://aptv.one:80/live'):
+        return 'live'
+    else:
+        return 'vodTV' # If unknown, we return tv-show
 
   def parseStreamType(self, streaminfo):
     typematch = tools.tvgTypeMatch(streaminfo)
@@ -203,7 +233,8 @@ class rawStreamList(object):
 
 
   def parseStream(self, streaminfo, streamURL):
-    streamtype = self.parseStreamType(streaminfo)
+    #streamtype = self.parseStreamType(streaminfo)
+    streamtype = self.parseStreamTypeByUrl(streamURL)
     if streamtype == 'vodTV':
       self.parseVodTv(streaminfo, streamURL)
     elif streamtype == 'vodMovie':
@@ -235,13 +266,30 @@ class rawStreamList(object):
         episodenumber = episodeinfo[3]
         language = episodeinfo[4]
         episode = TVEpisode(showtitle, streamURL, seasonnumber=seasonnumber, episodenumber=episodenumber, resolution=resolution, language=language, episodename=episodename)
-    print(episode.__dict__, 'TVSHOW')
-    print(episode.getFilename())
-    episode.makeStream()
+      print(episode.__dict__, 'TVSHOW')
+      print(episode.getFilename())
+      episode.makeStream()
   
   def parseLiveStream(self, streaminfo, streamURL):
     #print(streaminfo, "LIVETV")
-    pass
+    #todo: add language parsing for |LA| and strip it
+    title = tools.parseMovieInfo(streaminfo)
+    resolution = tools.resolutionMatch(streaminfo)
+    if resolution:
+      resolution = tools.parseResolution(resolution)
+    year = tools.yearMatch(streaminfo)
+    if year:
+      title = tools.stripYear(title)
+      year = year.group().strip()
+    language = tools.languageMatch(title)
+    if language:
+      title = tools.stripLanguage(title)
+      language = language.group().strip()
+    moviestream = LiveTv(title, streamURL, year=year, resolution=resolution, language=language)
+    print(moviestream.__dict__, "LIVETV")
+    print(moviestream.getFilename())
+    moviestream.makeStream()
+    # pass
 
   def parseVodMovie(self, streaminfo, streamURL):
     #todo: add language parsing for |LA| and strip it
